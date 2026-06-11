@@ -104,12 +104,113 @@ set_static_ip() {
 
     clear
 
+    detect_interface
+
     echo "===================================="
     echo " Set Static IP"
     echo "===================================="
     echo
 
-    echo "Feature not yet implemented."
+    echo "Interface: $INTERFACE"
+    echo
+
+    echo "Current Address:"
+    ip -4 addr show "$INTERFACE" | grep inet
+    echo
+
+    read -rp "IP Address: " IP
+    read -rp "Prefix Length (24): " PREFIX
+    read -rp "Gateway: " GATEWAY
+    read -rp "DNS Server: " DNS
+
+    echo
+    echo "New Configuration"
+    echo "-----------------"
+    echo "IP:      $IP/$PREFIX"
+    echo "Gateway: $GATEWAY"
+    echo "DNS:     $DNS"
+    echo
+
+    read -rp "Apply changes? (y/N): " CONFIRM
+
+    if [[ ! "$CONFIRM" =~ ^[Yy]$ ]]; then
+        echo
+        echo "Cancelled."
+        pause
+        return
+    fi
+
+    case "$NETWORK_MANAGER" in
+
+        NetworkManager)
+
+            mkdir -p backups
+
+            cp -r \
+                /etc/NetworkManager/system-connections \
+                "./backups/nm-$(date +%F-%H%M%S)" \
+                2>/dev/null
+
+            CONNECTION=$(nmcli -t -f NAME,DEVICE connection show |
+                grep ":$INTERFACE$" |
+                head -n1 |
+                cut -d: -f1)
+
+            if [[ -z "$CONNECTION" ]]; then
+                echo
+                echo "Unable to find NetworkManager connection."
+                pause
+                return
+            fi
+
+            nmcli connection modify "$CONNECTION" \
+                ipv4.method manual \
+                ipv4.addresses "$IP/$PREFIX" \
+                ipv4.gateway "$GATEWAY" \
+                ipv4.dns "$DNS"
+
+            nmcli connection down "$CONNECTION"
+            nmcli connection up "$CONNECTION"
+
+            ;;
+
+        ifupdown)
+
+            mkdir -p backups
+
+            cp \
+                /etc/network/interfaces \
+                "./backups/interfaces-$(date +%F-%H%M%S)"
+
+            cat > /etc/network/interfaces << EOF
+auto lo
+iface lo inet loopback
+
+auto $INTERFACE
+iface $INTERFACE inet static
+    address $IP/$PREFIX
+    gateway $GATEWAY
+    dns-nameservers $DNS
+EOF
+
+            systemctl restart networking || true
+
+            ;;
+
+        *)
+
+            echo
+            echo "Unsupported network manager."
+            pause
+            return
+            ;;
+
+    esac
+
+    log_message "Configured static IP $IP/$PREFIX on $INTERFACE"
+
+    echo
+    echo "Static IP configuration applied."
     echo
 
     pause
