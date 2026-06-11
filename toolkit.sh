@@ -33,19 +33,6 @@ detect_os() {
     fi
 }
 
-detect_network_manager() {
-
-    if command -v nmcli >/dev/null 2>&1; then
-        NETWORK_MANAGER="NetworkManager"
-
-    elif [[ -f /etc/network/interfaces ]]; then
-        NETWORK_MANAGER="ifupdown"
-
-    else
-        NETWORK_MANAGER="unknown"
-    fi
-}
-
 detect_interface() {
 
     INTERFACE=$(ip route |
@@ -55,6 +42,24 @@ detect_interface() {
 
     if [[ -z "$INTERFACE" ]]; then
         INTERFACE="Not Detected"
+    fi
+}
+
+detect_network_manager() {
+
+    if grep -q "^iface $INTERFACE " /etc/network/interfaces 2>/dev/null; then
+
+        NETWORK_MANAGER="ifupdown"
+
+    elif command -v nmcli >/dev/null 2>&1 &&
+         nmcli device show "$INTERFACE" >/dev/null 2>&1; then
+
+        NETWORK_MANAGER="NetworkManager"
+
+    else
+
+        NETWORK_MANAGER="unknown"
+
     fi
 }
 
