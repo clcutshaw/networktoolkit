@@ -151,5 +151,4 @@ detect_interface
 
 while true
 do
-    ...
 done
