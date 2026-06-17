@@ -47,20 +47,22 @@ detect_interface() {
 
 detect_network_manager() {
 
-    if grep -q "^iface $INTERFACE " /etc/network/interfaces 2>/dev/null; then
-
+    if [[ -f /etc/network/interfaces ]]; then
         NETWORK_MANAGER="ifupdown"
-
-    elif command -v nmcli >/dev/null 2>&1 &&
-         nmcli device show "$INTERFACE" >/dev/null 2>&1; then
-
-        NETWORK_MANAGER="NetworkManager"
-
-    else
-
-        NETWORK_MANAGER="unknown"
-
+        return
     fi
+
+    if systemctl is-active --quiet NetworkManager; then
+        NETWORK_MANAGER="NetworkManager"
+        return
+    fi
+
+    if systemctl is-active --quiet systemd-networkd; then
+        NETWORK_MANAGER="systemd-networkd"
+        return
+    fi
+
+    NETWORK_MANAGER="unknown"
 }
 
 #########################################
