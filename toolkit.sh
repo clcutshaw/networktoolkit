@@ -284,12 +284,42 @@ set_dhcp() {
 
     clear
 
+    get_network_info
+
     echo "===================================="
     echo " Return To DHCP"
     echo "===================================="
     echo
 
-    echo "Feature not yet implemented."
+    echo "Interface: $INTERFACE"
+    echo
+
+    echo "Current Configuration"
+    echo "------------------------------------"
+    print_network_config \
+        "$CURRENT_IP" \
+        "$CURRENT_PREFIX" \
+        "$CURRENT_GATEWAY" \
+        "$CURRENT_DNS"
+
+    echo
+    echo "Proposed Configuration"
+    echo "------------------------------------"
+    echo "IPv4 Method:    DHCP"
+    echo
+
+    read -rp "Apply this configuration? (y/N): " CONFIRM
+
+    if [[ ! "$CONFIRM" =~ ^[Yy]$ ]]; then
+        echo
+        echo "Cancelled."
+        echo
+        pause
+        return
+    fi
+
+    echo
+    echo "DHCP configuration not yet implemented."
     echo
 
     pause
