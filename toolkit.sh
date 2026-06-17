@@ -190,15 +190,7 @@ set_static_ip() {
         "$DNS"
     echo
 
-    read -rp "Apply this configuration? (y/N): " CONFIRM    echo
-    echo "New Configuration"
-    echo "-----------------"
-    echo "IP:      $IP/$PREFIX"
-    echo "Gateway: $GATEWAY"
-    echo "DNS:     $DNS"
-    echo
-
-    read -rp "Apply changes? (y/N): " CONFIRM
+    read -rp "Apply this configuration? (y/N): " CONFIRM
 
     if [[ ! "$CONFIRM" =~ ^[Yy]$ ]]; then
         echo
