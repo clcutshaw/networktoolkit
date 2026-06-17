@@ -152,13 +152,18 @@ set_static_ip() {
     echo "Interface: $INTERFACE"
     echo
 
-    echo "Current Configuration"
+   echo "Current Configuration"
+echo "------------------------------------"
+print_network_config \
+    "$CURRENT_IP" \
+    "$CURRENT_PREFIX" \
+    "$CURRENT_GATEWAY" \
+    "$CURRENT_DNS"
+echo
+
+    echo "Configuration Changes"
     echo "------------------------------------"
-    print_network_config \
-        "$CURRENT_IP" \
-        "$CURRENT_PREFIX" \
-        "$CURRENT_GATEWAY" \
-        "$CURRENT_DNS"
+    echo "Press Enter to keep the current value."
     echo
 
     read -rp "IP Address [$CURRENT_IP]: " IP
