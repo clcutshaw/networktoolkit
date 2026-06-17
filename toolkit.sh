@@ -65,6 +65,35 @@ detect_network_manager() {
     NETWORK_MANAGER="unknown"
 }
 
+get_network_info() {
+
+    detect_interface
+
+    CURRENT_IP=$(ip -4 addr show "$INTERFACE" |
+        awk '/inet / {print $2}' |
+        cut -d/ -f1)
+
+    CURRENT_PREFIX=$(ip -4 addr show "$INTERFACE" |
+        awk '/inet / {print $2}' |
+        cut -d/ -f2)
+
+    CURRENT_GATEWAY=$(ip route |
+        awk '/default/ {print $3}' |
+        head -n1)
+
+    CURRENT_DNS=$(grep '^nameserver' /etc/resolv.conf |
+        awk '{print $2}' |
+        head -n1)
+}
+
+print_network_config() {
+
+    printf "%-15s %s\n" "IP Address:" "$1"
+    printf "%-15s %s\n" "Prefix:" "$2"
+    printf "%-15s %s\n" "Gateway:" "$3"
+    printf "%-15s %s\n" "DNS:" "$4"
+}
+
 #########################################
 # Feature Functions
 #########################################
@@ -111,7 +140,9 @@ set_static_ip() {
 
     clear
 
-    detect_interface
+        clear
+
+    get_network_info
 
     echo "===================================="
     echo " Set Static IP"
@@ -121,16 +152,45 @@ set_static_ip() {
     echo "Interface: $INTERFACE"
     echo
 
-    echo "Current Address:"
-    ip -4 addr show "$INTERFACE" | grep inet
+    echo "Current Configuration"
+    echo "------------------------------------"
+    print_network_config \
+        "$CURRENT_IP" \
+        "$CURRENT_PREFIX" \
+        "$CURRENT_GATEWAY" \
+        "$CURRENT_DNS"
     echo
 
-    read -rp "IP Address: " IP
-    read -rp "Prefix Length (24): " PREFIX
-    read -rp "Gateway: " GATEWAY
-    read -rp "DNS Server: " DNS
+    read -rp "IP Address [$CURRENT_IP]: " IP
+    read -rp "Prefix Length [$CURRENT_PREFIX]: " PREFIX
+    read -rp "Gateway [$CURRENT_GATEWAY]: " GATEWAY
+    read -rp "DNS Server [$CURRENT_DNS]: " DNS
+
+    [[ -z "$IP" ]] && IP="$CURRENT_IP"
+    [[ -z "$PREFIX" ]] && PREFIX="$CURRENT_PREFIX"
+    [[ -z "$GATEWAY" ]] && GATEWAY="$CURRENT_GATEWAY"
+    [[ -z "$DNS" ]] && DNS="$CURRENT_DNS"
 
     echo
+    echo "Current Configuration"
+    echo "------------------------------------"
+    print_network_config \
+        "$CURRENT_IP" \
+        "$CURRENT_PREFIX" \
+        "$CURRENT_GATEWAY" \
+        "$CURRENT_DNS"
+
+    echo
+    echo "New Configuration"
+    echo "------------------------------------"
+    print_network_config \
+        "$IP" \
+        "$PREFIX" \
+        "$GATEWAY" \
+        "$DNS"
+    echo
+
+    read -rp "Apply this configuration? (y/N): " CONFIRM    echo
     echo "New Configuration"
     echo "-----------------"
     echo "IP:      $IP/$PREFIX"
