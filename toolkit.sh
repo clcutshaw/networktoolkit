@@ -53,14 +53,39 @@ detect_os() {
     fi
 }
 
+read_default_route() {
+
+    local route
+    local index
+    local -a route_fields
+
+    INTERFACE=""
+    CURRENT_GATEWAY=""
+
+    route=$(ip -4 route show default 2>/dev/null)
+    route=${route%%$'\n'*}
+
+    [[ -n "$route" ]] || return 1
+
+    read -ra route_fields <<< "$route"
+
+    for ((index = 0; index < ${#route_fields[@]}; index++)); do
+        case "${route_fields[index]}" in
+            via)
+                CURRENT_GATEWAY="${route_fields[index + 1]:-}"
+                ;;
+            dev)
+                INTERFACE="${route_fields[index + 1]:-}"
+                ;;
+        esac
+    done
+
+    [[ -n "$INTERFACE" ]]
+}
+
 detect_interface() {
 
-    INTERFACE=$(ip route |
-        grep default |
-        awk '{print $5}' |
-        head -n1)
-
-    if [[ -z "$INTERFACE" ]]; then
+    if ! read_default_route; then
         INTERFACE="Not Detected"
     fi
 }
@@ -85,25 +110,51 @@ detect_network_manager() {
     NETWORK_MANAGER="unknown"
 }
 
-get_network_info() {
+collect_network_state() {
+
+    local address_output
+    local address_line
+    local address_cidr=""
+    local directive
+    local value
+    local index
+    local -a address_fields
+
+    CURRENT_IP=""
+    CURRENT_PREFIX=""
+    CURRENT_DNS=""
 
     detect_interface
 
-    CURRENT_IP=$(ip -4 addr show "$INTERFACE" |
-        awk '/inet / {print $2}' |
-        cut -d/ -f1)
+    [[ "$INTERFACE" != "Not Detected" ]] || return 1
 
-    CURRENT_PREFIX=$(ip -4 addr show "$INTERFACE" |
-        awk '/inet / {print $2}' |
-        cut -d/ -f2)
+    address_output=$(ip -o -4 addr show dev "$INTERFACE" scope global 2>/dev/null)
+    address_line=${address_output%%$'\n'*}
 
-    CURRENT_GATEWAY=$(ip route |
-        awk '/default/ {print $3}' |
-        head -n1)
+    read -ra address_fields <<< "$address_line"
 
-    CURRENT_DNS=$(grep '^nameserver' /etc/resolv.conf |
-        awk '{print $2}' |
-        head -n1)
+    for ((index = 0; index < ${#address_fields[@]}; index++)); do
+        if [[ "${address_fields[index]}" == "inet" ]]; then
+            address_cidr="${address_fields[index + 1]:-}"
+            break
+        fi
+    done
+
+    [[ "$address_cidr" == */* ]] || return 1
+
+    CURRENT_IP=${address_cidr%/*}
+    CURRENT_PREFIX=${address_cidr#*/}
+
+    if [[ -r /etc/resolv.conf ]]; then
+        while read -r directive value _; do
+            if [[ "$directive" == "nameserver" ]]; then
+                CURRENT_DNS="$value"
+                break
+            fi
+        done < /etc/resolv.conf
+    fi
+
+    return 0
 }
 
 print_network_config() {
@@ -157,7 +208,13 @@ backup_network_config() {
 
 show_network_status() {
 
-    detect_interface
+    if ! collect_network_state; then
+        print_header "Network Status"
+        echo "Unable to detect an active IPv4 network interface."
+        echo
+        pause
+        return
+    fi
 
     print_header "Network Status"
 
@@ -173,16 +230,12 @@ show_network_status() {
     echo "$INTERFACE"
     echo
 
-    echo "IPv4 Address:"
-    ip -4 addr show "$INTERFACE" 2>/dev/null | grep inet
-    echo
-
-    echo "Gateway:"
-    ip route | grep default
-    echo
-
-    echo "DNS:"
-    grep nameserver /etc/resolv.conf 2>/dev/null
+    print_section "Current Configuration"
+    print_network_config \
+        "$CURRENT_IP" \
+        "$CURRENT_PREFIX" \
+        "$CURRENT_GATEWAY" \
+        "$CURRENT_DNS"
     echo
 
     pause
@@ -190,7 +243,13 @@ show_network_status() {
 
 set_static_ip() {
 
-    get_network_info
+    if ! collect_network_state; then
+        print_header "Set Static IP"
+        echo "Unable to detect an active IPv4 network interface."
+        echo
+        pause
+        return
+    fi
 
     print_header "Set Static IP"
 
@@ -315,7 +374,13 @@ EOF
 
 set_dhcp() {
 
-    get_network_info
+    if ! collect_network_state; then
+        print_header "Return To DHCP"
+        echo "Unable to detect an active IPv4 network interface."
+        echo
+        pause
+        return
+    fi
 
     print_header "Return To DHCP"
 
@@ -480,7 +545,6 @@ fi
 
 detect_os
 detect_network_manager
-detect_interface
 
 #########################################
 # Main Menu
