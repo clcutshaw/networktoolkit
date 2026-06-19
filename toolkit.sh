@@ -94,6 +94,43 @@ print_network_config() {
     printf "%-15s %s\n" "DNS:" "$4"
 }
 
+backup_network_config() {
+
+    local timestamp
+    local backup_path
+
+    timestamp=$(date +%F-%H%M%S)
+
+    if ! mkdir -p backups || ! chmod 700 backups; then
+        return 1
+    fi
+
+    case "$NETWORK_MANAGER" in
+
+        NetworkManager)
+            backup_path="./backups/nm-$timestamp"
+            cp -a \
+                /etc/NetworkManager/system-connections \
+                "$backup_path" || return 1
+            ;;
+
+        ifupdown)
+            backup_path="./backups/interfaces-$timestamp"
+            cp -a \
+                /etc/network/interfaces \
+                "$backup_path" || return 1
+            ;;
+
+        *)
+            return 1
+            ;;
+
+    esac
+
+    log_message "Backed up network configuration to $backup_path"
+    return 0
+}
+
 #########################################
 # Feature Functions
 #########################################
@@ -204,16 +241,16 @@ echo
         return
     fi
 
+    if ! backup_network_config; then
+        echo
+        echo "Unable to back up the current network configuration."
+        pause
+        return
+    fi
+
     case "$NETWORK_MANAGER" in
 
         NetworkManager)
-
-            mkdir -p backups
-
-            cp -r \
-                /etc/NetworkManager/system-connections \
-                "./backups/nm-$(date +%F-%H%M%S)" \
-                2>/dev/null
 
             CONNECTION=$(nmcli -t -f NAME,DEVICE connection show |
                 grep ":$INTERFACE$" |
@@ -239,12 +276,6 @@ echo
             ;;
 
         ifupdown)
-
-            mkdir -p backups
-
-            cp \
-                /etc/network/interfaces \
-                "./backups/interfaces-$(date +%F-%H%M%S)"
 
             cat > /etc/network/interfaces << EOF
 auto lo
@@ -284,12 +315,123 @@ set_dhcp() {
 
     clear
 
+    get_network_info
+
     echo "===================================="
     echo " Return To DHCP"
     echo "===================================="
     echo
 
-    echo "Feature not yet implemented."
+    echo "Interface: $INTERFACE"
+    echo
+
+    echo "Current Configuration"
+    echo "------------------------------------"
+    print_network_config \
+        "$CURRENT_IP" \
+        "$CURRENT_PREFIX" \
+        "$CURRENT_GATEWAY" \
+        "$CURRENT_DNS"
+
+    echo
+    echo "Proposed Configuration"
+    echo "------------------------------------"
+    echo "IPv4 Method:    DHCP"
+    echo
+
+    read -rp "Apply this configuration? (y/N): " CONFIRM
+
+    if [[ ! "$CONFIRM" =~ ^[Yy]$ ]]; then
+        echo
+        echo "Cancelled."
+        echo
+        pause
+        return
+    fi
+
+    if ! backup_network_config; then
+        echo
+        echo "Unable to back up the current network configuration."
+        pause
+        return
+    fi
+
+    case "$NETWORK_MANAGER" in
+
+        NetworkManager)
+
+            CONNECTION=$(nmcli -t -f NAME,DEVICE connection show |
+                grep ":$INTERFACE$" |
+                head -n1 |
+                cut -d: -f1)
+
+            if [[ -z "$CONNECTION" ]]; then
+                echo
+                echo "Unable to find NetworkManager connection."
+                pause
+                return
+            fi
+
+            if ! nmcli connection modify "$CONNECTION" \
+                ipv4.method auto \
+                ipv4.addresses "" \
+                ipv4.gateway "" \
+                ipv4.dns ""; then
+                echo
+                echo "Unable to update NetworkManager connection."
+                pause
+                return
+            fi
+
+            if ! nmcli connection down "$CONNECTION" ||
+                ! nmcli connection up "$CONNECTION"; then
+                echo
+                echo "Unable to reactivate NetworkManager connection."
+                pause
+                return
+            fi
+
+            ;;
+
+        ifupdown)
+
+            if ! cat > /etc/network/interfaces << EOF
+auto lo
+iface lo inet loopback
+
+auto $INTERFACE
+iface $INTERFACE inet dhcp
+EOF
+            then
+                echo
+                echo "Unable to update /etc/network/interfaces."
+                pause
+                return
+            fi
+
+            if ! systemctl restart networking; then
+                echo
+                echo "Unable to restart networking."
+                pause
+                return
+            fi
+
+            ;;
+
+        *)
+
+            echo
+            echo "DHCP configuration is not yet implemented for $NETWORK_MANAGER."
+            pause
+            return
+            ;;
+
+    esac
+
+    log_message "Configured DHCP on $INTERFACE using $NETWORK_MANAGER"
+
+    echo
+    echo "DHCP configuration applied."
     echo
 
     pause
