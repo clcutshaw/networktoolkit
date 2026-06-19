@@ -318,8 +318,57 @@ set_dhcp() {
         return
     fi
 
+    case "$NETWORK_MANAGER" in
+
+        NetworkManager)
+
+            CONNECTION=$(nmcli -t -f NAME,DEVICE connection show |
+                grep ":$INTERFACE$" |
+                head -n1 |
+                cut -d: -f1)
+
+            if [[ -z "$CONNECTION" ]]; then
+                echo
+                echo "Unable to find NetworkManager connection."
+                pause
+                return
+            fi
+
+            if ! nmcli connection modify "$CONNECTION" \
+                ipv4.method auto \
+                ipv4.addresses "" \
+                ipv4.gateway "" \
+                ipv4.dns ""; then
+                echo
+                echo "Unable to update NetworkManager connection."
+                pause
+                return
+            fi
+
+            if ! nmcli connection down "$CONNECTION" ||
+                ! nmcli connection up "$CONNECTION"; then
+                echo
+                echo "Unable to reactivate NetworkManager connection."
+                pause
+                return
+            fi
+
+            ;;
+
+        *)
+
+            echo
+            echo "DHCP configuration is not yet implemented for $NETWORK_MANAGER."
+            pause
+            return
+            ;;
+
+    esac
+
+    log_message "Configured DHCP on $INTERFACE using NetworkManager"
+
     echo
-    echo "DHCP configuration not yet implemented."
+    echo "DHCP configuration applied."
     echo
 
     pause
