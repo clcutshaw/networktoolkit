@@ -94,6 +94,43 @@ print_network_config() {
     printf "%-15s %s\n" "DNS:" "$4"
 }
 
+backup_network_config() {
+
+    local timestamp
+    local backup_path
+
+    timestamp=$(date +%F-%H%M%S)
+
+    if ! mkdir -p backups || ! chmod 700 backups; then
+        return 1
+    fi
+
+    case "$NETWORK_MANAGER" in
+
+        NetworkManager)
+            backup_path="./backups/nm-$timestamp"
+            cp -a \
+                /etc/NetworkManager/system-connections \
+                "$backup_path" || return 1
+            ;;
+
+        ifupdown)
+            backup_path="./backups/interfaces-$timestamp"
+            cp -a \
+                /etc/network/interfaces \
+                "$backup_path" || return 1
+            ;;
+
+        *)
+            return 1
+            ;;
+
+    esac
+
+    log_message "Backed up network configuration to $backup_path"
+    return 0
+}
+
 #########################################
 # Feature Functions
 #########################################
@@ -204,16 +241,16 @@ echo
         return
     fi
 
+    if ! backup_network_config; then
+        echo
+        echo "Unable to back up the current network configuration."
+        pause
+        return
+    fi
+
     case "$NETWORK_MANAGER" in
 
         NetworkManager)
-
-            mkdir -p backups
-
-            cp -r \
-                /etc/NetworkManager/system-connections \
-                "./backups/nm-$(date +%F-%H%M%S)" \
-                2>/dev/null
 
             CONNECTION=$(nmcli -t -f NAME,DEVICE connection show |
                 grep ":$INTERFACE$" |
@@ -239,12 +276,6 @@ echo
             ;;
 
         ifupdown)
-
-            mkdir -p backups
-
-            cp \
-                /etc/network/interfaces \
-                "./backups/interfaces-$(date +%F-%H%M%S)"
 
             cat > /etc/network/interfaces << EOF
 auto lo
@@ -314,6 +345,13 @@ set_dhcp() {
         echo
         echo "Cancelled."
         echo
+        pause
+        return
+    fi
+
+    if ! backup_network_config; then
+        echo
+        echo "Unable to back up the current network configuration."
         pause
         return
     fi
