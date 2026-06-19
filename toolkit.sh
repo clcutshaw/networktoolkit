@@ -18,6 +18,26 @@ pause() {
     read -rp "Press Enter to continue..."
 }
 
+print_header() {
+    clear
+    echo "===================================="
+    echo " $1"
+    echo "===================================="
+    echo
+}
+
+print_section() {
+    echo "$1"
+    echo "------------------------------------"
+}
+
+confirm_action() {
+    local response
+
+    read -rp "Apply this configuration? (y/N): " response
+    [[ "$response" =~ ^[Yy]$ ]]
+}
+
 detect_os() {
 
     if [[ -f /etc/os-release ]]; then
@@ -137,14 +157,9 @@ backup_network_config() {
 
 show_network_status() {
 
-    clear
-
     detect_interface
 
-    echo "===================================="
-    echo " Network Status"
-    echo "===================================="
-    echo
+    print_header "Network Status"
 
     echo "OS:"
     echo "$OS_NAME $OS_VERSION"
@@ -175,31 +190,22 @@ show_network_status() {
 
 set_static_ip() {
 
-    clear
-
-        clear
-
     get_network_info
 
-    echo "===================================="
-    echo " Set Static IP"
-    echo "===================================="
-    echo
+    print_header "Set Static IP"
 
     echo "Interface: $INTERFACE"
     echo
 
-   echo "Current Configuration"
-echo "------------------------------------"
-print_network_config \
-    "$CURRENT_IP" \
-    "$CURRENT_PREFIX" \
-    "$CURRENT_GATEWAY" \
-    "$CURRENT_DNS"
-echo
+    print_section "Current Configuration"
+    print_network_config \
+        "$CURRENT_IP" \
+        "$CURRENT_PREFIX" \
+        "$CURRENT_GATEWAY" \
+        "$CURRENT_DNS"
+    echo
 
-    echo "Configuration Changes"
-    echo "------------------------------------"
+    print_section "Configuration Changes"
     echo "Press Enter to keep the current value."
     echo
 
@@ -214,8 +220,7 @@ echo
     [[ -z "$DNS" ]] && DNS="$CURRENT_DNS"
 
     echo
-    echo "Current Configuration"
-    echo "------------------------------------"
+    print_section "Current Configuration"
     print_network_config \
         "$CURRENT_IP" \
         "$CURRENT_PREFIX" \
@@ -223,8 +228,7 @@ echo
         "$CURRENT_DNS"
 
     echo
-    echo "New Configuration"
-    echo "------------------------------------"
+    print_section "New Configuration"
     print_network_config \
         "$IP" \
         "$PREFIX" \
@@ -232,9 +236,7 @@ echo
         "$DNS"
     echo
 
-    read -rp "Apply this configuration? (y/N): " CONFIRM
-
-    if [[ ! "$CONFIRM" =~ ^[Yy]$ ]]; then
+    if ! confirm_action; then
         echo
         echo "Cancelled."
         pause
@@ -313,20 +315,14 @@ EOF
 
 set_dhcp() {
 
-    clear
-
     get_network_info
 
-    echo "===================================="
-    echo " Return To DHCP"
-    echo "===================================="
-    echo
+    print_header "Return To DHCP"
 
     echo "Interface: $INTERFACE"
     echo
 
-    echo "Current Configuration"
-    echo "------------------------------------"
+    print_section "Current Configuration"
     print_network_config \
         "$CURRENT_IP" \
         "$CURRENT_PREFIX" \
@@ -334,14 +330,11 @@ set_dhcp() {
         "$CURRENT_DNS"
 
     echo
-    echo "Proposed Configuration"
-    echo "------------------------------------"
+    print_section "Proposed Configuration"
     echo "IPv4 Method:    DHCP"
     echo
 
-    read -rp "Apply this configuration? (y/N): " CONFIRM
-
-    if [[ ! "$CONFIRM" =~ ^[Yy]$ ]]; then
+    if ! confirm_action; then
         echo
         echo "Cancelled."
         echo
@@ -438,13 +431,7 @@ EOF
 }
 
 update_system() {
-
-    clear
-
-    echo "===================================="
-    echo " System Update"
-    echo "===================================="
-    echo
+    print_header "System Update"
 
     case "$OS_ID" in
 
@@ -504,12 +491,7 @@ do
 
     detect_interface
 
-    clear
-
-    echo "===================================="
-    echo " Network Toolkit"
-    echo "===================================="
-    echo
+    print_header "Network Toolkit"
     echo "OS: $OS_NAME $OS_VERSION"
     echo "Network Manager: $NETWORK_MANAGER"
     echo "Interface: $INTERFACE"
