@@ -355,6 +355,31 @@ set_dhcp() {
 
             ;;
 
+        ifupdown)
+
+            if ! cat > /etc/network/interfaces << EOF
+auto lo
+iface lo inet loopback
+
+auto $INTERFACE
+iface $INTERFACE inet dhcp
+EOF
+            then
+                echo
+                echo "Unable to update /etc/network/interfaces."
+                pause
+                return
+            fi
+
+            if ! systemctl restart networking; then
+                echo
+                echo "Unable to restart networking."
+                pause
+                return
+            fi
+
+            ;;
+
         *)
 
             echo
@@ -365,7 +390,7 @@ set_dhcp() {
 
     esac
 
-    log_message "Configured DHCP on $INTERFACE using NetworkManager"
+    log_message "Configured DHCP on $INTERFACE using $NETWORK_MANAGER"
 
     echo
     echo "DHCP configuration applied."
